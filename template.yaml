@@ -1,0 +1,122 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: KnowledgeBase with Pinecone RAG
+
+Parameters:
+  SystemName:
+    Type: String
+
+  EmbeddingModelArn:
+    Type: String
+    AllowedValues:
+      - arn:aws:bedrock:us-west-2::foundation-model/amazon.titan-embed-text-v1
+      - arn:aws:bedrock:us-west-2::foundation-model/amazon.titan-embed-text-v2:0
+    Default: arn:aws:bedrock:us-west-2::foundation-model/amazon.titan-embed-text-v2:0
+
+  PineconeEndPoint:
+    Type: String
+
+  PineconeSecretArn:
+    Type: String
+
+Resources:
+  KnowledgeBaseRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${SystemName}-role-${AWS::Region}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                AWS:SourceArn: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/*
+      ManagedPolicyArns:
+        - !Ref ModelAccessPolicy
+        - !Ref RagDataSourceAccessPolicy
+        - !Ref SecretsManagerAccessPolicy
+
+  ModelAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - bedrock:ListFoundationModels
+              - bedrock:ListCustomModels
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - bedrock:InvokeModel
+            Resource:
+              - !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v1
+              - !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v2:0
+
+  RagDataSourceAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:ListBucket
+            Resource:
+              - !Sub arn:aws:s3:::${RagDataSourceBucket}
+              - !Sub arn:aws:s3:::${RagDataSourceBucket}/*
+            Condition:
+              StringEquals:
+                aws:PrincipalAccount: !Ref AWS::AccountId
+
+  SecretsManagerAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource:
+              - !Ref PineconeSecretArn
+
+  RagDataSourceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${SystemName}-rag-datasouce-${AWS::AccountId}-${AWS::Region}
+
+  AmazonBedrockKnowledgeBase:
+    Type: AWS::Bedrock::KnowledgeBase
+    Properties:
+      KnowledgeBaseConfiguration:
+        Type: VECTOR
+        VectorKnowledgeBaseConfiguration:
+          EmbeddingModelArn: !Ref EmbeddingModelArn
+      Name: !Sub ${SystemName}-knowledgebase
+      RoleArn: !GetAtt KnowledgeBaseRole.Arn
+      StorageConfiguration:
+        Type: PINECONE
+        PineconeConfiguration:
+          ConnectionString: !Ref PineconeEndPoint
+          CredentialsSecretArn: !Ref PineconeSecretArn
+          FieldMapping:
+            MetadataField: metadata
+            TextField: text
+
+  DataSource:
+    Type: AWS::Bedrock::DataSource
+    Properties:
+      DataSourceConfiguration:
+        Type: S3
+        S3Configuration:
+          BucketArn: !GetAtt RagDataSourceBucket.Arn
+      Name: !Sub ${SystemName}-data-source
+      KnowledgeBaseId: !Ref AmazonBedrockKnowledgeBase

@@ -22,9 +22,9 @@
    ```bash
    bun install
    ```
-3. `createIndex.ts`を使用して、Pineconeインデックスを作成します。
+3. `createIndex.js`を使用して、Pineconeインデックスを作成します。
    ```bash
-   bun createIndex.ts
+   bun createIndex.js
    ```
 4. Secrets Managerを作成します。
     ```bash

@@ -32,5 +32,5 @@
     ```
 5. `template.yaml`を使用して、AWSリソースをデプロイします。
    ```bash
-   rain deploy -r <AWS:Region> template.yaml RagKnowledgeBaseStack
+   rain deploy -r <AWS:Region> template.yaml knowledgebase-stack
    ```

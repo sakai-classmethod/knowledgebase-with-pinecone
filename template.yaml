@@ -1,19 +1,13 @@
 AWSTemplateFormatVersion: "2010-09-09"
 
-Description: KnowledgeBase with Pinecone RAG
+Description: Bedrock Knowledge Base with Pinecone Vector Store and S3 Data Source
 
 Parameters:
-  SystemName:
+  EmbeddingModelId:
     Type: String
+    Default: amazon.titan-embed-text-v2:0
 
-  EmbeddingModelArn:
-    Type: String
-    AllowedValues:
-      - arn:aws:bedrock:us-west-2::foundation-model/amazon.titan-embed-text-v1
-      - arn:aws:bedrock:us-west-2::foundation-model/amazon.titan-embed-text-v2:0
-    Default: arn:aws:bedrock:us-west-2::foundation-model/amazon.titan-embed-text-v2:0
-
-  PineconeEndPoint:
+  PineconeEndpoint:
     Type: String
 
   PineconeSecretArn:
@@ -23,7 +17,7 @@ Resources:
   KnowledgeBaseRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub ${SystemName}-role-${AWS::Region}
+      RoleName: !Sub ${AWS::StackName}-role
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -56,8 +50,7 @@ Resources:
             Action:
               - bedrock:InvokeModel
             Resource:
-              - !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v1
-              - !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v2:0
+              - !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/${EmbeddingModelId}
 
   RagDataSourceAccessPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -70,8 +63,8 @@ Resources:
               - s3:GetObject
               - s3:ListBucket
             Resource:
-              - !Sub arn:aws:s3:::${RagDataSourceBucket}
-              - !Sub arn:aws:s3:::${RagDataSourceBucket}/*
+              - !Sub arn:aws:s3:::${DataSourceBucket}
+              - !Sub arn:aws:s3:::${DataSourceBucket}/*
             Condition:
               StringEquals:
                 aws:PrincipalAccount: !Ref AWS::AccountId
@@ -88,35 +81,39 @@ Resources:
             Resource:
               - !Ref PineconeSecretArn
 
-  RagDataSourceBucket:
+  DataSourceBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub ${SystemName}-rag-datasouce-${AWS::AccountId}-${AWS::Region}
+      BucketName: !Sub ${AWS::StackName}-rag-datasource-${AWS::AccountId}-${AWS::Region}
 
-  AmazonBedrockKnowledgeBase:
+  KnowledgeBase:
     Type: AWS::Bedrock::KnowledgeBase
     Properties:
       KnowledgeBaseConfiguration:
         Type: VECTOR
         VectorKnowledgeBaseConfiguration:
-          EmbeddingModelArn: !Ref EmbeddingModelArn
-      Name: !Sub ${SystemName}-knowledgebase
+          EmbeddingModelArn: !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/${EmbeddingModelId}
+      Name: !Sub ${AWS::StackName}-knowledgebase
       RoleArn: !GetAtt KnowledgeBaseRole.Arn
       StorageConfiguration:
         Type: PINECONE
         PineconeConfiguration:
-          ConnectionString: !Ref PineconeEndPoint
+          ConnectionString: !Ref PineconeEndpoint
           CredentialsSecretArn: !Ref PineconeSecretArn
           FieldMapping:
             MetadataField: metadata
             TextField: text
 
-  DataSource:
+  S3DataSource:
     Type: AWS::Bedrock::DataSource
     Properties:
       DataSourceConfiguration:
         Type: S3
         S3Configuration:
-          BucketArn: !GetAtt RagDataSourceBucket.Arn
-      Name: !Sub ${SystemName}-data-source
-      KnowledgeBaseId: !Ref AmazonBedrockKnowledgeBase
+          BucketArn: !GetAtt DataSourceBucket.Arn
+      Name: !Sub ${AWS::StackName}-data-source
+      KnowledgeBaseId: !Ref KnowledgeBase
+
+Outputs:
+  KnowledgeBaseId:
+    Value: !Ref KnowledgeBase

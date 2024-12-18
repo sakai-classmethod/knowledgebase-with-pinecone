@@ -14,23 +14,29 @@
 ## セットアップ手順
 
 1. リポジトリをクローンします。
-   ```bash
-   git clone https://github.com/sakai-classmethod/knowledgebase-with-pinecone.git
-   cd knowledgebase-with-pinecone
-   ```
+  ```bash
+  git clone https://github.com/sakai-classmethod/knowledgebase-with-pinecone.git
+  cd knowledgebase-with-pinecone
+  ```
 2. 必要なパッケージをインストールします。
-   ```bash
-   bun install
-   ```
+  ```bash
+  # npm
+  npm install
+  # bun
+  bun install
+  ```
 3. `createIndex.js`を使用して、Pineconeインデックスを作成します。
-   ```bash
-   bun createIndex.js
-   ```
+  ```bash
+  # node
+  node createIndex.js
+  # bun
+  bun createIndex.js
+  ```
 4. Secrets Managerを作成します。
-    ```bash
-    aws secretsmanager create-secret --region <AWS:Region> --name PineconeSecret --secret-string "{\"apiKey\":\"YOUR_API_KEY\"}"
-    ```
+  ```bash
+  aws secretsmanager create-secret --region <AWS:Region> --name PineconeSecret --secret-string "{\"apiKey\":\"YOUR_API_KEY\"}"
+  ```
 5. `template.yaml`を使用して、AWSリソースをデプロイします。
-   ```bash
-   rain deploy -r <AWS:Region> template.yaml knowledgebase-stack
-   ```
+  ```bash
+  rain deploy -r <AWS:Region> template.yaml knowledgebase-stack
+  ```
